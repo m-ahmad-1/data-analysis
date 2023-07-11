@@ -1,1 +1,152 @@
-imprt pandas as pd
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import LabelEncoder
+
+# Load the CSV file
+csv_file_path = 'C:/Users/Muhammad Ahmad/Downloads/h2o/r/Train.csv'
+sales_data = pd.read_csv(csv_file_path)
+pd.set_option('display.max_columns', None)
+print(sales_data.head())  
+
+# Handling missing values in 'Item_Weight' column
+mean = sales_data['Item_Weight'].mean()
+sales_data['Item_Weight'].fillna(mean, inplace=True)
+
+# Handling missing values in 'Outlet_Size' column based on 'Outlet_Type'
+mode_of_Outlet_size = sales_data.pivot_table(values='Outlet_Size', columns='Outlet_Type', aggfunc=(lambda x: x.mode()[0]))
+miss_values = sales_data['Outlet_Size'].isnull()
+sales_data.loc[miss_values, 'Outlet_Size'] = sales_data.loc[miss_values, 'Outlet_Type'].apply(lambda x: mode_of_Outlet_size[x])
+
+# Data exploration and visualization
+
+# Bar plot for top 5 items by weight and sales
+max_quantity_per_item_weight = sales_data.groupby('Item_Weight')['Item_Outlet_Sales'].sum()
+sorted_max_quantity_weight = max_quantity_per_item_weight.sort_values(ascending=False)
+plt.figure(figsize=(15, 5))
+sns.barplot(x=sorted_max_quantity_weight.index[0:5], y=sorted_max_quantity_weight.values[0:5])
+plt.xlabel("Item Weight")
+plt.ylabel("Item Outlet Sales")
+plt.title("Top 5 Items by Weight and Sales")
+plt.show()
+
+# Replace values in 'Item_Fat_Content' column and plot histogram
+sales_data.replace({'Item_Fat_Content': {'low fat': 'Low Fat', 'LF': 'Low Fat', 'reg': 'Regular'}}, inplace=True)
+max_quantity_per_fat_content = sales_data.groupby('Item_Fat_Content')['Item_Outlet_Sales'].sum()
+sorted_max_quantity_fat_content = max_quantity_per_fat_content.sort_values(ascending=False)
+plt.figure(figsize=(15, 5))
+sns.barplot(x=sorted_max_quantity_fat_content.index, y=sorted_max_quantity_fat_content.values)
+plt.xlabel("Item Fat Content")
+plt.ylabel("Total Sales")
+plt.title("Total Sales by Fat Content")
+plt.show()
+
+# Group by 'Item_Type' and calculate the sum of 'Item_Outlet_Sales'
+max_quantity_per_item_type = sales_data.groupby('Item_Type')['Item_Outlet_Sales'].sum()
+sorted_max_quantity_type = max_quantity_per_item_type.sort_values(ascending=False)
+
+# Create a DataFrame with top 10 items by item type
+top_10_items_type = pd.DataFrame({
+    'Item_Type': sorted_max_quantity_type.index[:10],
+    'Item_Outlet_Sales': sorted_max_quantity_type.values[:10]
+})
+
+plt.figure(figsize=(10, 6))
+
+# Create a bar plot
+sns.barplot(data=top_10_items_type, x='Item_Type', y='Item_Outlet_Sales')
+plt.xlabel("Item Type")
+plt.ylabel("Item Outlet Sales")
+plt.title("Top 10 Items by Item Type and Sales")
+plt.xticks(rotation=45)
+
+plt.tight_layout()  # Add tight layout to prevent label overlap
+plt.show()
+
+
+# Group by 'Item_MRP' and calculate the sum of 'Item_Outlet_Sales'
+max_quantity_per_item_mrp = sales_data.groupby('Item_MRP')['Item_Outlet_Sales'].sum()
+sorted_max_quantity_mrp = max_quantity_per_item_mrp.sort_values(ascending=False)
+
+# Create a DataFrame with top 10 items by item MRP
+top_10_items_mrp = pd.DataFrame({
+    'Item_MRP': sorted_max_quantity_mrp.index[:10],
+    'Item_Outlet_Sales': sorted_max_quantity_mrp.values[:10]
+})
+
+plt.figure(figsize=(15, 5))
+
+# Create a bar plot
+sns.barplot(data=top_10_items_mrp, x='Item_MRP', y='Item_Outlet_Sales')
+plt.xlabel("Item_MRP")
+plt.ylabel("Item Outlet Sales")
+plt.title("Top 10 Items by Item MRP and Sales")
+plt.show()
+
+# Data preprocessing for classification
+
+encoder = LabelEncoder()
+sales_data['Item_Fat_Content'] = encoder.fit_transform(sales_data['Item_Fat_Content'])
+sales_data['Item_Type'] = encoder.fit_transform(sales_data['Item_Type'])
+
+x = sales_data[["Item_Weight", "Item_Fat_Content", "Item_Visibility", "Item_MRP", "Item_Type"]]
+y = sales_data["Item_Identifier"]
+
+# Splitting the data into training and testing sets
+X_train, X_test, Y_train, Y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+print(x.shape, X_train.shape, X_test.shape)
+
+# Fit the K-nearest neighbors classifier on the training data
+knn = KNeighborsClassifier(n_neighbors=1)
+knn.fit(X_train, Y_train)
+
+# Predict the classes for new data
+X_new = pd.DataFrame({
+    "Item_Weight": [9.31],
+    "Item_Fat_Content": [0],
+    "Item_Visibility": [0.016],
+    "Item_MRP": [249.9],
+    "Item_Type": [4]
+})
+result = knn.predict(X_new)
+print(result)
+
+# Filter the dataframe for the predicted class
+filtered_df = sales_data[sales_data['Item_Identifier'] == result[0]]
+
+# Calculate the sum of Item_Outlet_Sales for the filtered dataframe
+max_quantity_per_item = filtered_df.groupby("Item_Identifier")['Item_Outlet_Sales'].sum()
+print(max_quantity_per_item)
+print(filtered_df[["Outlet_Identifier", "Item_Outlet_Sales"]])
+
+# Visualize the bar plots
+plt.figure(figsize=(10, 5))
+sns.barplot(x=filtered_df["Outlet_Identifier"], y=filtered_df["Item_Outlet_Sales"])
+plt.xlabel("Outlet Identifier")
+plt.ylabel("Item Outlet Sales")
+plt.title("Item Outlet Sales by Outlet Identifier")
+plt.show()
+
+plt.figure(figsize=(10, 5))
+sns.barplot(x=filtered_df["Outlet_Size"], y=filtered_df["Item_Outlet_Sales"])
+plt.xlabel("Outlet Size")
+plt.ylabel("Item Outlet Sales")
+plt.title("Item Outlet Sales by Outlet Size")
+plt.show()
+
+plt.figure(figsize=(10, 5))
+sns.barplot(x=filtered_df["Outlet_Location_Type"], y=filtered_df["Item_Outlet_Sales"])
+plt.xlabel("Outlet Location Type")
+plt.ylabel("Item Outlet Sales")
+plt.title("Item Outlet Sales by Outlet Location Type")
+plt.show()
+
+plt.figure(figsize=(10, 5))
+sns.barplot(x=filtered_df["Outlet_Type"], y=filtered_df["Item_Outlet_Sales"])
+plt.xlabel("Outlet Type")
+plt.ylabel("Item Outlet Sales")
+plt.title("Item Outlet Sales by Outlet Type")
+plt.show()
+
